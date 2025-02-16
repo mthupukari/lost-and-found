@@ -1,5 +1,7 @@
 package com.example.lostandfound.controller;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.lostandfound.dto.LoginRequest;
 import com.example.lostandfound.model.User;
 import com.example.lostandfound.repository.UserRepository;
+import com.example.lostandfound.security.JwtUtil;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -24,6 +27,9 @@ public class AuthController {
 
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @PostMapping("/register")
     public ResponseEntity<User> addUser(@RequestBody User newUser) {
@@ -43,8 +49,11 @@ public class AuthController {
 
         if(optionalUser.isPresent()){
             User user = optionalUser.get();
-            if(passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())){
-                return ResponseEntity.ok("Login successful");
+            if (passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+                String token = jwtUtil.generateToken(user.getUsername());
+                Map<String, String> response = new HashMap<>();
+                response.put("token", token);
+                return ResponseEntity.ok(response);
             } else {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
             }
