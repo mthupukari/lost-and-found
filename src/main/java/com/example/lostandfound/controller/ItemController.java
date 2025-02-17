@@ -1,9 +1,11 @@
 package com.example.lostandfound.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.lostandfound.model.Item;
@@ -96,17 +99,29 @@ public class ItemController {
         if (!optionalItem.isPresent()) {
             return ResponseEntity.notFound().build();
         }
-        
+
         Item item = optionalItem.get();
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
-        
+
         if (!item.getUser().getUsername().equals(currentUsername)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        
+
         itemRepository.deleteById(id);
         return ResponseEntity.ok().build();
+    }
+    
+    @GetMapping("/search")
+    public ResponseEntity<List<Item>> searchItems(
+        @RequestParam(required = false) String title, 
+        @RequestParam(required = false) String location, 
+        @RequestParam(required = false) String type, 
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+         
+        List<Item> items = itemRepository.searchItems(title, location, type, date);
+        return ResponseEntity.ok(items);
+
     }
 
 }

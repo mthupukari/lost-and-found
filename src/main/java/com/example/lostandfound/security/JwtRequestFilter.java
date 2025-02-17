@@ -28,6 +28,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+
+        String uri = request.getRequestURI();
+
+        // If the request is for an endpoint that should be permitted anonymously, skip the filter.
+        if (uri.startsWith("/api/auth/") || uri.startsWith("/api/items/search")) {
+            chain.doFilter(request, response);
+            return;
+        }
+        
         final String authorizationHeader = request.getHeader("Authorization");
 
         String username = null;
