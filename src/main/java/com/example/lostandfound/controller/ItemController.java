@@ -3,6 +3,7 @@ package com.example.lostandfound.controller;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.lostandfound.dto.ContactInfoDTO;
+import com.example.lostandfound.dto.PublicItemDTO;
 import com.example.lostandfound.model.Item;
 import com.example.lostandfound.model.User;
 import com.example.lostandfound.repository.ItemRepository;
@@ -113,15 +116,45 @@ public class ItemController {
     }
     
     @GetMapping("/search")
-    public ResponseEntity<List<Item>> searchItems(
+    public ResponseEntity<List<PublicItemDTO>> searchItems(
         @RequestParam(required = false) String title, 
         @RequestParam(required = false) String location, 
         @RequestParam(required = false) String type, 
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-         
-        List<Item> items = itemRepository.searchItems(title, location, type, date);
-        return ResponseEntity.ok(items);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 
+        List<Item> items = itemRepository.searchItems(title, location, type, date);
+        List<PublicItemDTO> publicItems = items.stream()
+                .map(this::convertToPublicDTO)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(publicItems);
+    }
+    
+    @GetMapping("/{id}/contact")
+    public ResponseEntity<ContactInfoDTO> getContactInfo(@PathVariable Long id) {
+        // retrieve the item by ID
+        Optional<Item> optionalItem = itemRepository.findById(id);
+        if (!optionalItem.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Item item = optionalItem.get();
+        ContactInfoDTO contactInfo = new ContactInfoDTO();
+        contactInfo.setEmail(item.getUser().getEmail());
+
+        return ResponseEntity.ok(contactInfo);
+    }
+    
+    private PublicItemDTO convertToPublicDTO(Item item) {
+        return new PublicItemDTO(
+            item.getId(),
+            item.getTitle(), 
+            item.getDescription(), 
+            item.getLocation(), 
+            item.getDate(), 
+            item.getType(), 
+            item.getImageUrl()
+        );
     }
 
 }

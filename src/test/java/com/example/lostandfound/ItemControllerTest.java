@@ -7,10 +7,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.example.lostandfound.model.Item;
@@ -41,20 +46,22 @@ public class ItemControllerTest {
     private User userA;
     private User userB;
     private Item item;
+    private Item item2; 
+    private Item item3; 
 
     @BeforeEach
     public void setup() {
-        //clean up 
+        // Clean up repositories
         itemRepository.deleteAll();
         userRepository.deleteAll();
 
-        //create two users
+        // Create two users
         userA = new User("userA", passwordEncoder.encode("passwordA"), "userA@example.com", "ROLE_USER");
         userB = new User("userB", passwordEncoder.encode("passwordB"), "userB@example.com", "ROLE_USER");
         userRepository.save(userA);
         userRepository.save(userB);
 
-        //create item for user A
+        // Create an item for userA (for delete and contact tests)
         item = new Item();
         item.setTitle("Lost Keys");
         item.setDescription("A set of keys lost at the library");
@@ -65,10 +72,9 @@ public class ItemControllerTest {
         item.setUser(userA);
         itemRepository.save(item);
 
-        // Create additional items for search testing:
-
+        // Create additional items for search tests:
         // Item 2: "Lost Wallet" at "Campus", date = 2025-02-14, type "lost"
-        Item item2 = new Item();
+        item2 = new Item();
         item2.setTitle("Lost Wallet");
         item2.setDescription("A wallet lost on campus");
         item2.setLocation("Campus");
@@ -79,7 +85,7 @@ public class ItemControllerTest {
         itemRepository.save(item2);
 
         // Item 3: "Found Keys" at "Cafeteria", date = today, type "found"
-        Item item3 = new Item();
+        item3 = new Item();
         item3.setTitle("Found Keys");
         item3.setDescription("Keys found at the cafeteria");
         item3.setLocation("Cafeteria");
@@ -92,10 +98,7 @@ public class ItemControllerTest {
 
     @Test
     public void testDeleteItemAuthorized() throws Exception {
-        // generate JWT token for userA (owner of item)
         String token = jwtUtil.generateToken(userA.getUsername());
-
-        // Perform DELETE request on /api/items/{id} with userA's token and expect 200 OK
         mockMvc.perform(delete("/api/items/" + item.getId())
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON))
@@ -104,10 +107,7 @@ public class ItemControllerTest {
     
     @Test
     public void testDeleteItemUnauthorized() throws Exception {
-        // Generate JWT token for userB (not the owner)
         String token = jwtUtil.generateToken(userB.getUsername());
-
-        // Attempt to delete the item (owned by userA) using userB's token and expect 403 Forbidden
         mockMvc.perform(delete("/api/items/" + item.getId())
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON))
@@ -116,16 +116,15 @@ public class ItemControllerTest {
 
     @Test
     public void testSearchByTitle() throws Exception {
-        // Searching for items with title containing "Lost" should return 2 items:
-        // "Lost Keys" and "Lost Wallet"
+        // Searching for items with title containing "Lost"
+        // Expecting 2 items: "Lost Keys" and "Lost Wallet"
         mockMvc.perform(get("/api/items/search")
                 .param("title", "Lost")
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                // Expecting a JSON array of length 2
                 .andExpect(jsonPath("$.length()").value(2));
     }
-
+    
     @Test
     public void testSearchByLocation() throws Exception {
         // Searching for items with location "Library" should return 1 item ("Lost Keys")
@@ -136,7 +135,7 @@ public class ItemControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].location").value("Library"));
     }
-
+    
     @Test
     public void testSearchByTypeAndDate() throws Exception {
         // Searching for lost items on the date 2025-02-14 should return 1 item ("Lost Wallet")
@@ -147,5 +146,25 @@ public class ItemControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].title").value("Lost Wallet"));
+    }
+    
+    // Contact endpoint should be secured and return contact info only for authenticated users
+    @Test
+    public void testContactEndpointUnauthorized() throws Exception {
+        // Attempt to access the contact endpoint without auth should return 403 Forbidden
+        mockMvc.perform(get("/api/items/" + item.getId() + "/contact")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+    }
+    
+    @Test
+    public void testContactEndpointAuthorized() throws Exception {
+        // Generate token for userA (owner of the item)
+        String token = jwtUtil.generateToken(userA.getUsername());
+        mockMvc.perform(get("/api/items/" + item.getId() + "/contact")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(userA.getEmail()));
     }
 }
